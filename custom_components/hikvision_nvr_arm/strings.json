@@ -23,7 +23,7 @@
       },
       "triggers": {
         "title": "Choose events",
-        "description": "Events listed here notify Hik-Connect when armed. Pick the events you use (preselected: those armed right now; the list is empty if the NVR is disarmed). Selecting an event whose detection is off on the camera has no effect.",
+        "description": "Tick the events whose Hik-Connect push this switch should turn on and off. Each entry is an event type and a camera.\n\n**What the types mean**\n- **Intrusion**: a person or vehicle enters a zone (AcuSense, the usual choice)\n- **Motion**: general motion detection\n- **Line crossing / Region entrance / Region exiting**: other smart events, only if you use them\n- **Tamper**: camera covered or moved\n- **Video loss**: camera offline\n- **Scene change**: view of the camera changed\n\n**Tips**\n- Preselected are the events that notify Hik-Connect on the NVR right now. If nothing is preselected, the NVR is currently disarmed: arm it first, or tick what you use.\n- Ticking an event that was not armed before will start sending push for it when you arm.\n- An event whose detection is turned off on the camera never fires, so ticking it has no effect.\n- Cameras that are offline do not appear in the list.",
         "data": { "triggers": "Events" }
       },
       "reconfigure": {

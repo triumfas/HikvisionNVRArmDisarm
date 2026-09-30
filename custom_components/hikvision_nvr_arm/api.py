@@ -18,7 +18,8 @@ import re
 
 import aiohttp
 
-REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=15)
+REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=30)
+PARALLEL_WRITES = 4
 
 CENTER_RE = re.compile(r"<notificationMethod>\s*center\s*</notificationMethod>")
 CENTER_BLOCK_RE = re.compile(
@@ -155,6 +156,11 @@ class HikNvrClient:
             parts.append(f'opaque="{ch["opaque"]}"')
         return "Digest " + ", ".join(parts)
 
+    @property
+    def writing(self) -> bool:
+        """True while arm/disarm writes are in progress."""
+        return self._lock.locked()
+
     async def device_info(self) -> dict[str, str]:
         """Return name/model/serial (also serves as a credentials check)."""
         text = await self._request("GET", "/ISAPI/System/deviceInfo")
@@ -197,29 +203,38 @@ class HikNvrClient:
             )
         return triggers
 
+    async def _set_one(self, trigger_id: str, armed: bool) -> bool:
+        """Set the center linkage on one trigger. Returns False if the NVR did not accept it."""
+        path = f"/ISAPI/Event/triggers/{trigger_id}"
+        try:
+            xml = await self._request("GET", path)
+            xml = xml[xml.index("<?xml") :] if "<?xml" in xml else xml
+            if bool(CENTER_RE.search(xml)) == armed:
+                return True
+            if armed:
+                new = xml.replace(
+                    "</EventTriggerNotificationList>",
+                    CENTER_BLOCK + "</EventTriggerNotificationList>",
+                )
+            else:
+                new = CENTER_BLOCK_RE.sub("", xml)
+            return "<statusString>OK" in await self._request("PUT", path, new)
+        except (HikAuthError, HikPermissionError):
+            raise
+        except HikNvrError:
+            return False
+
     async def set_armed(self, trigger_ids: list[str], armed: bool) -> list[str]:
-        """Set the center linkage on the given triggers. Returns ids that failed."""
-        failed: list[str] = []
+        """Set the center linkage on the given triggers. Returns ids that failed.
+
+        Each PUT takes the NVR a few seconds to apply, so a few run in parallel.
+        """
+        semaphore = asyncio.Semaphore(PARALLEL_WRITES)
+
+        async def run(trigger_id: str) -> bool:
+            async with semaphore:
+                return await self._set_one(trigger_id, armed)
+
         async with self._lock:
-            for trigger_id in trigger_ids:
-                path = f"/ISAPI/Event/triggers/{trigger_id}"
-                try:
-                    xml = await self._request("GET", path)
-                    xml = xml[xml.index("<?xml") :] if "<?xml" in xml else xml
-                    if bool(CENTER_RE.search(xml)) == armed:
-                        continue
-                    if armed:
-                        new = xml.replace(
-                            "</EventTriggerNotificationList>",
-                            CENTER_BLOCK + "</EventTriggerNotificationList>",
-                        )
-                    else:
-                        new = CENTER_BLOCK_RE.sub("", xml)
-                    reply = await self._request("PUT", path, new)
-                    if "<statusString>OK" not in reply:
-                        failed.append(trigger_id)
-                except (HikAuthError, HikPermissionError):
-                    raise
-                except HikNvrError:
-                    failed.append(trigger_id)
-        return failed
+            results = await asyncio.gather(*(run(i) for i in trigger_ids))
+        return [i for i, ok in zip(trigger_ids, results) if not ok]

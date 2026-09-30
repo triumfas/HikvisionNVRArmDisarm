@@ -62,6 +62,8 @@ class NvrCoordinator(DataUpdateCoordinator[dict[str, Trigger]]):
         self.entry = entry
 
     async def _async_update_data(self) -> dict[str, Trigger]:
+        if self.client.writing and self.data is not None:
+            return self.data  # the NVR is busy applying an arm/disarm, keep the last state
         try:
             triggers = await self.client.list_triggers()
         except (HikAuthError, HikPermissionError) as err:

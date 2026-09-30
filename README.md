@@ -11,6 +11,8 @@ Hik-Connect sends push notifications only for events whose linkage has **Notify 
 
 - **On** = armed (push notifications are sent), **Off** = disarmed (none are sent).
 - The Hik-Connect app itself stays armed all the time; the NVR decides what gets sent.
+- Applying a change takes the NVR a few seconds per event, so switching takes about 10 seconds; the switch shows the requested state right away and
+  is then verified against the NVR.
 - State is read from the NVR every minute, so changes made in the NVR UI show up too.
 - If only some of the selected events are armed the switch state is *unknown* (attribute `partial: true`).
 
@@ -36,6 +38,8 @@ Verified on a DS-7608NI-M2/8P (firmware V5.04.087) with DS-2CD2347G2H-LISU/SL ca
 
 - Home Assistant 2025.1 or newer, able to reach the NVR over HTTP or HTTPS.
 - An NVR user with **Remote: Parameters Settings** (Configuration → System → User Management). Create a dedicated user for this.
+  That single permission is enough (verified: reading and changing the event linkage worked with only it). Cameras that are offline on the NVR
+  are not returned by the NVR and do not appear in the event list.
 
 ## Install
 

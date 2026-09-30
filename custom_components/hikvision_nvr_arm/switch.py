@@ -33,6 +33,7 @@ class ArmSwitch(CoordinatorEntity[NvrCoordinator], SwitchEntity):
     def __init__(self, coordinator: NvrCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
         self._entry = entry
+        self._pending: bool | None = None  # target state while a change is being applied
         self._attr_unique_id = f"{entry.unique_id}_hikconnect_notifications"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.unique_id)},
@@ -45,6 +46,8 @@ class ArmSwitch(CoordinatorEntity[NvrCoordinator], SwitchEntity):
     @property
     def is_on(self) -> bool | None:
         """True if all armed, False if all disarmed, None (unknown) if mixed."""
+        if self._pending is not None:
+            return self._pending
         states = {t.armed for t in self.coordinator.data.values()}
         if len(states) == 1:
             return states.pop()
@@ -66,12 +69,17 @@ class ArmSwitch(CoordinatorEntity[NvrCoordinator], SwitchEntity):
         await self._set(False)
 
     async def _set(self, armed: bool) -> None:
+        self._pending = armed  # show the requested state right away, applying takes seconds
+        self.async_write_ha_state()
         try:
             failed = await self.coordinator.client.set_armed(selected_triggers(self._entry), armed)
+            # Verify from the NVR, not from what we think we wrote.
+            await self.coordinator.async_refresh()
         except HikNvrError as err:
             raise HomeAssistantError(f"NVR error: {err}") from err
-        # Verify from the NVR, not from what we think we wrote.
-        await self.coordinator.async_refresh()
+        finally:
+            self._pending = None
+            self.async_write_ha_state()
         wrong = [t.id for t in self.coordinator.data.values() if t.armed != armed]
         if failed or wrong:
             raise HomeAssistantError(
