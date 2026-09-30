@@ -35,8 +35,8 @@ def icon(size: int, dark: bool = False) -> Image.Image:
     return img.resize((size, size), Image.LANCZOS)
 
 
-def logo(height: int = 256) -> Image.Image:
-    ic = icon(height)
+def logo(height: int = 256, dark: bool = False) -> Image.Image:
+    ic = icon(height, dark)
     try:
         font = ImageFont.truetype("segoeuib.ttf", int(height * 0.24))
         small = ImageFont.truetype("segoeui.ttf", int(height * 0.17))
@@ -48,8 +48,8 @@ def logo(height: int = 256) -> Image.Image:
     img.paste(ic, (0, 0), ic)
     d = ImageDraw.Draw(img)
     x = height + int(height * 0.12)
-    d.text((x, int(height * 0.30)), text1, font=font, fill=(18, 70, 115, 255))
-    d.text((x, int(height * 0.56)), text2, font=small, fill=(90, 110, 130, 255))
+    d.text((x, int(height * 0.30)), text1, font=font, fill=(235, 242, 250, 255) if dark else (18, 70, 115, 255))
+    d.text((x, int(height * 0.56)), text2, font=small, fill=(170, 190, 210, 255) if dark else (90, 110, 130, 255))
     return img
 
 
@@ -60,4 +60,6 @@ icon(256, dark=True).save(OUT / "dark_icon.png")
 icon(512, dark=True).save(OUT / "dark_icon@2x.png")
 logo(256).save(OUT / "logo.png")
 logo(512).save(OUT / "logo@2x.png")
+logo(256, dark=True).save(OUT / "dark_logo.png")
+logo(512, dark=True).save(OUT / "dark_logo@2x.png")
 print(sorted(p.name for p in OUT.iterdir()))

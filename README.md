@@ -37,6 +37,8 @@ restart Home Assistant, then *Settings → Devices & services → Add integratio
 The setup asks for the NVR host and credentials, then which events to control. The events that are armed right now are preselected, so set up
 the integration while the NVR is armed. Change the selection later under *Configure*.
 
+The integration icon and logo are shown by Home Assistant 2026.3 or newer (local `brand/` images); older versions work normally but show no icon.
+
 ## Entities
 
 | Entity | Description |
