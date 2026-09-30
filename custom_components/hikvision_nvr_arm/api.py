@@ -51,6 +51,10 @@ class HikPermissionError(HikNvrError):
     """The user lacks the rights for the operation."""
 
 
+class HikSslError(HikNvrError):
+    """TLS handshake or certificate verification failed."""
+
+
 @dataclass(frozen=True)
 class Trigger:
     """One event linkage on the NVR (e.g. fielddetection-2)."""
@@ -76,9 +80,13 @@ class HikNvrClient:
         port: int,
         username: str,
         password: str,
+        use_ssl: bool = False,
+        verify_ssl: bool = True,
     ) -> None:
         self._session = session
-        self._base = f"http://{host}:{port}"
+        self._base = f"{'https' if use_ssl else 'http'}://{host}:{port}"
+        # ssl=False turns certificate verification off; None keeps the default (verify).
+        self._ssl = False if use_ssl and not verify_ssl else None
         self._username = username
         self._password = password
         self._lock = asyncio.Lock()
@@ -89,16 +97,18 @@ class HikNvrClient:
         headers = {"Content-Type": "application/xml"} if body else {}
         try:
             async with self._session.request(
-                method, url, timeout=REQUEST_TIMEOUT, headers=headers or None
+                method, url, timeout=REQUEST_TIMEOUT, headers=headers or None, ssl=self._ssl
             ) as challenge:
                 if challenge.status != 401:
                     return await self._finish(challenge)
                 header = challenge.headers.get("WWW-Authenticate", "")
             headers["Authorization"] = self._digest(method, path, header)
             async with self._session.request(
-                method, url, data=data, headers=headers, timeout=REQUEST_TIMEOUT
+                method, url, data=data, headers=headers, timeout=REQUEST_TIMEOUT, ssl=self._ssl
             ) as response:
                 return await self._finish(response)
+        except aiohttp.ClientSSLError as err:
+            raise HikSslError(f"TLS error: {err}") from err
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
             raise HikNvrError(f"Cannot reach NVR: {err}") from err
 

@@ -26,7 +26,7 @@ Verified on a DS-7608NI-M2/8P (firmware V5.04.087) with DS-2CD2347G2H-LISU/SL ca
 
 ## Requirements
 
-- Home Assistant 2025.1 or newer, able to reach the NVR over HTTP.
+- Home Assistant 2025.1 or newer, able to reach the NVR over HTTP or HTTPS.
 - An NVR user with **Remote: Parameters Settings** (Configuration → System → User Management). Create a dedicated user for this.
 
 ## Install
@@ -34,10 +34,17 @@ Verified on a DS-7608NI-M2/8P (firmware V5.04.087) with DS-2CD2347G2H-LISU/SL ca
 Copy `custom_components/hikvision_nvr_arm` into your Home Assistant `config/custom_components/` folder (or add this repository to HACS as a custom repository),
 restart Home Assistant, then *Settings → Devices & services → Add integration → Hikvision NVR Arm/Disarm*.
 
-The setup asks for the NVR host and credentials, then which events to control. The events that are armed right now are preselected, so set up
+The setup asks for the NVR host, port and credentials, then which events to control. The events that are armed right now are preselected, so set up
 the integration while the NVR is armed. Change the selection later under *Configure*.
 
 The integration icon and logo are shown by Home Assistant 2026.3 or newer (local `brand/` images); older versions work normally but show no icon.
+
+### HTTPS
+
+Tick **Use HTTPS** and set the port (usually 443). NVRs normally use a self-signed certificate, which Home Assistant cannot verify, so the setup then
+fails with a TLS/certificate error. Untick **Verify SSL certificate** to trust the NVR's certificate anyway; with verification on, the certificate
+must be trusted by Home Assistant. Connection settings, credentials and the SSL options can be changed later under *Reconfigure*, and if the NVR
+rejects the saved password Home Assistant offers a re-authentication prompt.
 
 ## Entities
 

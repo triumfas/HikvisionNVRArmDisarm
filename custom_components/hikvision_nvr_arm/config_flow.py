@@ -2,28 +2,45 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.const import (
+    CONF_HOST,
+    CONF_PASSWORD,
+    CONF_PORT,
+    CONF_SSL,
+    CONF_USERNAME,
+    CONF_VERIFY_SSL,
+)
 from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from . import selected_triggers
-from .api import HikAuthError, HikNvrClient, HikNvrError, HikPermissionError, Trigger
+from . import client_from_data, selected_triggers
+from .api import (
+    HikAuthError,
+    HikNvrError,
+    HikPermissionError,
+    HikSslError,
+    Trigger,
+)
 from .const import CONF_TRIGGERS, DEFAULT_PORT, DOMAIN
 
-USER_SCHEMA = vol.Schema(
-    {
-        vol.Required(CONF_HOST): str,
-        vol.Required(CONF_PORT, default=DEFAULT_PORT): int,
-        vol.Required(CONF_USERNAME): str,
-        vol.Required(CONF_PASSWORD): str,
-    }
-)
+
+def _connection_schema() -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(CONF_HOST): str,
+            vol.Required(CONF_PORT, default=DEFAULT_PORT): int,
+            vol.Required(CONF_SSL, default=False): bool,
+            vol.Required(CONF_VERIFY_SSL, default=True): bool,
+            vol.Required(CONF_USERNAME): str,
+            vol.Required(CONF_PASSWORD): str,
+        }
+    )
 
 
 def _trigger_options(triggers: list[Trigger]) -> dict[str, str]:
@@ -41,36 +58,40 @@ class HikNvrArmConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry):
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
         return HikNvrArmOptionsFlow()
+
+    async def _try_connect(
+        self, hass_data: Mapping[str, Any]
+    ) -> tuple[dict[str, str] | None, list[Trigger], dict[str, str]]:
+        """Return (device info, triggers, errors)."""
+        client = client_from_data(self.hass, hass_data)
+        try:
+            info = await client.device_info()
+            triggers = await client.list_triggers()
+        except HikAuthError:
+            return None, [], {"base": "invalid_auth"}
+        except HikPermissionError:
+            return None, [], {"base": "no_permission"}
+        except HikSslError:
+            return None, [], {"base": "ssl_error"}
+        except HikNvrError:
+            return None, [], {"base": "cannot_connect"}
+        return info, triggers, {}
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
-            client = HikNvrClient(
-                async_get_clientsession(self.hass),
-                user_input[CONF_HOST],
-                user_input[CONF_PORT],
-                user_input[CONF_USERNAME],
-                user_input[CONF_PASSWORD],
-            )
-            try:
-                info = await client.device_info()
-                self._triggers = await client.list_triggers()
-            except HikAuthError:
-                errors["base"] = "invalid_auth"
-            except HikPermissionError:
-                errors["base"] = "no_permission"
-            except HikNvrError:
-                errors["base"] = "cannot_connect"
-            else:
+            info, triggers, errors = await self._try_connect(user_input)
+            if info:
                 await self.async_set_unique_id(info["serial"])
                 self._abort_if_unique_id_configured()
+                self._triggers = triggers
                 self._data = {**user_input, **info}
                 return await self.async_step_triggers()
         return self.async_show_form(
             step_id="user",
-            data_schema=self.add_suggested_values_to_schema(USER_SCHEMA, user_input),
+            data_schema=self.add_suggested_values_to_schema(_connection_schema(), user_input),
             errors=errors,
         )
 
@@ -92,6 +113,50 @@ class HikNvrArmConfigFlow(ConfigFlow, domain=DOMAIN):
             ),
         )
 
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Change host, port, SSL settings or credentials of an existing NVR."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            info, _, errors = await self._try_connect(user_input)
+            if info:
+                await self.async_set_unique_id(info["serial"])
+                self._abort_if_unique_id_mismatch(reason="wrong_device")
+                self.hass.config_entries.async_update_entry(entry, data={**entry.data, **user_input})
+                return self.async_abort(reason="reconfigure_successful")
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                _connection_schema(), user_input or entry.data
+            ),
+            errors=errors,
+        )
+
+    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        entry = self._get_reauth_entry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            data = {**entry.data, **user_input}
+            info, _, errors = await self._try_connect(data)
+            if info:
+                self.hass.config_entries.async_update_entry(entry, data=data)
+                return self.async_abort(reason="reauth_successful")
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_USERNAME, default=entry.data[CONF_USERNAME]): str,
+                    vol.Required(CONF_PASSWORD): str,
+                }
+            ),
+            errors=errors,
+        )
+
 
 class HikNvrArmOptionsFlow(OptionsFlow):
     """Change which events are armed/disarmed."""
@@ -99,16 +164,8 @@ class HikNvrArmOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             return self.async_create_entry(data={CONF_TRIGGERS: user_input[CONF_TRIGGERS]})
-        data = self.config_entry.data
-        client = HikNvrClient(
-            async_get_clientsession(self.hass),
-            data[CONF_HOST],
-            data[CONF_PORT],
-            data[CONF_USERNAME],
-            data[CONF_PASSWORD],
-        )
         try:
-            triggers = await client.list_triggers()
+            triggers = await client_from_data(self.hass, self.config_entry.data).list_triggers()
         except HikNvrError:
             return self.async_abort(reason="cannot_connect")
         return self.async_show_form(

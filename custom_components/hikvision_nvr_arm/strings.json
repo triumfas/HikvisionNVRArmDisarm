@@ -3,27 +3,61 @@
     "step": {
       "user": {
         "title": "Hikvision NVR",
-        "description": "Use a dedicated NVR user with the Remote: Parameters Settings permission.",
+        "description": "Use a dedicated NVR user with the Remote: Parameters Settings permission. The port is 80 for HTTP and usually 443 for HTTPS.",
         "data": {
           "host": "Host",
           "port": "Port",
+          "ssl": "Use HTTPS",
+          "verify_ssl": "Verify SSL certificate",
           "username": "Username",
           "password": "Password"
+        },
+        "data_description": {
+          "verify_ssl": "Turn off to trust a self-signed or otherwise untrusted certificate. Only applies with HTTPS."
         }
       },
       "triggers": {
         "title": "Events to arm/disarm",
         "description": "Hik-Connect push is sent for events that notify the surveillance center. Pick the events this switch controls (preselected: the ones armed right now).",
         "data": { "triggers": "Events" }
+      },
+      "reconfigure": {
+        "title": "Hikvision NVR connection",
+        "description": "Change the address, HTTPS settings or credentials of this NVR.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "ssl": "Use HTTPS",
+          "verify_ssl": "Verify SSL certificate",
+          "username": "Username",
+          "password": "Password"
+        },
+        "data_description": {
+          "verify_ssl": "Turn off to trust a self-signed or otherwise untrusted certificate. Only applies with HTTPS."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Sign in to the NVR again",
+        "description": "The NVR rejected the saved credentials. Enter the current ones.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
       }
     },
     "error": {
       "cannot_connect": "Cannot connect to the NVR",
       "invalid_auth": "Invalid username or password (the username is case-sensitive)",
       "no_permission": "The NVR user lacks permissions",
+      "ssl_error": "TLS/certificate error. Check the port, or turn off \"Verify SSL certificate\" to trust an untrusted certificate",
       "unknown": "Unexpected error"
     },
-    "abort": { "already_configured": "This NVR is already configured" }
+    "abort": {
+      "already_configured": "This NVR is already configured",
+      "wrong_device": "This is a different NVR than the one originally configured",
+      "reconfigure_successful": "Connection settings updated",
+      "reauth_successful": "Signed in again"
+    }
   },
   "options": {
     "step": {

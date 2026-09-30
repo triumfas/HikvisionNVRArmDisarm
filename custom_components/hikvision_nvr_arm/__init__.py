@@ -2,11 +2,21 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import timedelta
 import logging
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME, Platform
+from homeassistant.const import (
+    CONF_HOST,
+    CONF_PASSWORD,
+    CONF_PORT,
+    CONF_SSL,
+    CONF_USERNAME,
+    CONF_VERIFY_SSL,
+    Platform,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -22,6 +32,19 @@ PLATFORMS = [Platform.SWITCH]
 def selected_triggers(entry: ConfigEntry) -> list[str]:
     """Trigger ids this entry controls (options override the initial selection)."""
     return list(entry.options.get(CONF_TRIGGERS, entry.data[CONF_TRIGGERS]))
+
+
+def client_from_data(hass: HomeAssistant, data: Mapping[str, Any]) -> HikNvrClient:
+    """Build an API client from config entry data (older entries have no SSL keys)."""
+    return HikNvrClient(
+        async_get_clientsession(hass),
+        data[CONF_HOST],
+        data[CONF_PORT],
+        data[CONF_USERNAME],
+        data[CONF_PASSWORD],
+        use_ssl=data.get(CONF_SSL, False),
+        verify_ssl=data.get(CONF_VERIFY_SSL, True),
+    )
 
 
 class NvrCoordinator(DataUpdateCoordinator[dict[str, Trigger]]):
@@ -50,14 +73,7 @@ class NvrCoordinator(DataUpdateCoordinator[dict[str, Trigger]]):
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    client = HikNvrClient(
-        async_get_clientsession(hass),
-        entry.data[CONF_HOST],
-        entry.data[CONF_PORT],
-        entry.data[CONF_USERNAME],
-        entry.data[CONF_PASSWORD],
-    )
-    coordinator = NvrCoordinator(hass, entry, client)
+    coordinator = NvrCoordinator(hass, entry, client_from_data(hass, entry.data))
     await coordinator.async_config_entry_first_refresh()
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
