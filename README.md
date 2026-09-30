@@ -1,3 +1,5 @@
+<p align="center"><img src="custom_components/hikvision_nvr_arm/brand/logo@2x.png" alt="Hikvision NVR Arm/Disarm" height="128"></p>
+
 # Hikvision NVR Arm/Disarm
 
 Home Assistant custom integration that arms and disarms **Hik-Connect push notifications** on a Hikvision NVR, with a single switch.
