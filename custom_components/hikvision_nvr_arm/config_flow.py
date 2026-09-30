@@ -27,7 +27,7 @@ from .api import (
     HikSslError,
     Trigger,
 )
-from .const import CONF_TRIGGERS, DEFAULT_PORT, DOMAIN
+from .const import CONF_TRIGGERS, DEFAULT_PORT, DOMAIN, EVENT_NAMES
 
 
 def _connection_schema() -> vol.Schema:
@@ -43,8 +43,23 @@ def _connection_schema() -> vol.Schema:
     )
 
 
-def _trigger_options(triggers: list[Trigger]) -> dict[str, str]:
-    return {t.id: f"Channel {t.channel} - {t.event_type} ({t.id})" for t in triggers}
+def _camera(channel: int | None, names: Mapping[int, str]) -> str:
+    return names.get(channel, f"Channel {channel}")
+
+
+def _trigger_options(triggers: list[Trigger], names: Mapping[int, str]) -> dict[str, str]:
+    """Checkbox labels like "Intrusion - Iejimas", grouped by event type."""
+    ordered = sorted(triggers, key=lambda t: (EVENT_NAMES.get(t.event_type, t.event_type), t.channel or 0))
+    return {t.id: f"{EVENT_NAMES.get(t.event_type, t.event_type)} - {_camera(t.channel, names)}" for t in ordered}
+
+
+def _summary(triggers: list[Trigger], names: Mapping[int, str]) -> str:
+    """Markdown list: one line per event type with the cameras it covers."""
+    by_type: dict[str, list[str]] = {}
+    for t in sorted(triggers, key=lambda t: t.channel or 0):
+        by_type.setdefault(EVENT_NAMES.get(t.event_type, t.event_type), []).append(_camera(t.channel, names))
+    lines = [f"- **{event}**: {', '.join(cams)}" for event, cams in sorted(by_type.items())]
+    return "\n".join(lines)
 
 
 class HikNvrArmConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -55,6 +70,7 @@ class HikNvrArmConfigFlow(ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         self._data: dict[str, Any] = {}
         self._triggers: list[Trigger] = []
+        self._names: dict[int, str] = {}
 
     @staticmethod
     @callback
@@ -87,27 +103,45 @@ class HikNvrArmConfigFlow(ConfigFlow, domain=DOMAIN):
                 await self.async_set_unique_id(info["serial"])
                 self._abort_if_unique_id_configured()
                 self._triggers = triggers
+                self._names = await client_from_data(self.hass, user_input).channel_names()
                 self._data = {**user_input, **info}
-                return await self.async_step_triggers()
+                return await self.async_step_review()
         return self.async_show_form(
             step_id="user",
             data_schema=self.add_suggested_values_to_schema(_connection_schema(), user_input),
             errors=errors,
         )
 
+    def _create(self, trigger_ids: list[str]) -> ConfigFlowResult:
+        return self.async_create_entry(
+            title=self._data["name"], data={**self._data, CONF_TRIGGERS: trigger_ids}
+        )
+
+    async def async_step_review(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Confirm the events that are armed on the NVR right now (the usual choice)."""
+        armed = [t for t in self._triggers if t.armed]
+        if not armed:  # nothing to summarise, go straight to the manual list
+            return await self.async_step_triggers()
+        if user_input is not None:
+            if user_input["customize"]:
+                return await self.async_step_triggers()
+            return self._create([t.id for t in armed])
+        return self.async_show_form(
+            step_id="review",
+            data_schema=vol.Schema({vol.Required("customize", default=False): bool}),
+            description_placeholders={"summary": _summary(armed, self._names)},
+        )
+
     async def async_step_triggers(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
-            return self.async_create_entry(
-                title=self._data["name"],
-                data={**self._data, CONF_TRIGGERS: user_input[CONF_TRIGGERS]},
-            )
+            return self._create(user_input[CONF_TRIGGERS])
         armed_now = [t.id for t in self._triggers if t.armed]
         return self.async_show_form(
             step_id="triggers",
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_TRIGGERS, default=armed_now): cv.multi_select(
-                        _trigger_options(self._triggers)
+                        _trigger_options(self._triggers, self._names)
                     )
                 }
             ),
@@ -164,17 +198,19 @@ class HikNvrArmOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             return self.async_create_entry(data={CONF_TRIGGERS: user_input[CONF_TRIGGERS]})
+        client = client_from_data(self.hass, self.config_entry.data)
         try:
-            triggers = await client_from_data(self.hass, self.config_entry.data).list_triggers()
+            triggers = await client.list_triggers()
         except HikNvrError:
             return self.async_abort(reason="cannot_connect")
+        names = await client.channel_names()
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
                     vol.Required(
                         CONF_TRIGGERS, default=selected_triggers(self.config_entry)
-                    ): cv.multi_select(_trigger_options(triggers))
+                    ): cv.multi_select(_trigger_options(triggers, names))
                 }
             ),
         )

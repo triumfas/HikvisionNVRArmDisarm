@@ -42,8 +42,20 @@ Verified on a DS-7608NI-M2/8P (firmware V5.04.087) with DS-2CD2347G2H-LISU/SL ca
 Copy `custom_components/hikvision_nvr_arm` into your Home Assistant `config/custom_components/` folder (or add this repository to HACS as a custom repository),
 restart Home Assistant, then *Settings → Devices & services → Add integration → Hikvision NVR Arm/Disarm*.
 
-The setup asks for the NVR host, port and credentials, then which events to control. The events that are armed right now are preselected, so set up
-the integration while the NVR is armed. Change the selection later under *Configure*.
+### Setup in short
+
+1. **Put the NVR in the state you want to control:** in the Hik-Connect app / NVR the notifications you normally get must be **armed** (i.e. currently working).
+2. Add the integration and enter the NVR host, port and the dedicated user. Tick *Use HTTPS* if you use it (see below).
+3. The next screen lists the events that are armed right now, grouped by type with your camera names, e.g.
+
+   - **Intrusion**: all cameras
+   - **Motion**: Iejimas, Auto aikstele, ...
+
+   Just continue, that is the right choice for most setups. Tick *Choose the events myself* only if you want a different set.
+4. Done: use `switch.<nvr>_hik_connect_notifications`.
+
+If nothing is armed when you add the integration you get the full list with nothing preselected, so arm the NVR first. Change the events later under
+*Configure*.
 
 The integration icon and logo are shown by Home Assistant 2026.3 or newer (local `brand/` images); older versions work normally but show no icon.
 

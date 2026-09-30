@@ -16,9 +16,14 @@
           "verify_ssl": "Turn off to trust a self-signed or otherwise untrusted certificate. Only applies with HTTPS."
         }
       },
-      "triggers": {
+      "review": {
         "title": "Events to arm/disarm",
-        "description": "Hik-Connect push is sent for events that notify the surveillance center. Pick the events this switch controls (preselected: the ones armed right now).",
+        "description": "The switch will arm and disarm Hik-Connect push for the events that are armed on the NVR right now:\n\n{summary}\n\nDetection settings are not changed, only whether these events notify Hik-Connect. Tick the box below to choose different events, otherwise just continue.",
+        "data": { "customize": "Choose the events myself" }
+      },
+      "triggers": {
+        "title": "Choose events",
+        "description": "Events listed here notify Hik-Connect when armed. Pick the events you use (preselected: those armed right now; the list is empty if the NVR is disarmed). Selecting an event whose detection is off on the camera has no effect.",
         "data": { "triggers": "Events" }
       },
       "reconfigure": {

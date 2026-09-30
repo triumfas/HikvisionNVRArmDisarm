@@ -165,6 +165,19 @@ class HikNvrClient:
             "firmware": _tag(text, "firmwareVersion") or "",
         }
 
+    async def channel_names(self) -> dict[int, str]:
+        """Camera names by channel id (empty if the user may not read them)."""
+        try:
+            text = await self._request("GET", "/ISAPI/ContentMgmt/InputProxy/channels")
+        except HikNvrError:
+            return {}
+        names: dict[int, str] = {}
+        for block in re.findall(r"<InputProxyChannel>.*?</InputProxyChannel>", text, re.S):
+            channel_id, name = _tag(block, "id"), _tag(block, "name")
+            if channel_id and name:
+                names[int(channel_id)] = name
+        return names
+
     async def list_triggers(self) -> list[Trigger]:
         """All per-channel event linkages and whether Notify Surveillance Center is set."""
         text = await self._request("GET", "/ISAPI/Event/triggers")
