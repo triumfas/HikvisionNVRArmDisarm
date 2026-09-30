@@ -1,0 +1,12 @@
+{
+  "domain": "hikvision_nvr_arm",
+  "name": "Hikvision NVR Arm/Disarm",
+  "codeowners": ["@triumfas"],
+  "config_flow": true,
+  "documentation": "https://github.com/triumfas/HikvisionNVRArmDisarm",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/triumfas/HikvisionNVRArmDisarm/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

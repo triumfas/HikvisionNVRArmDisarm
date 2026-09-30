@@ -1,0 +1,42 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Hikvision NVR",
+        "description": "Use a dedicated NVR user with the Remote: Parameters Settings permission.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "username": "Username",
+          "password": "Password"
+        }
+      },
+      "triggers": {
+        "title": "Events to arm/disarm",
+        "description": "Hik-Connect push is sent for events that notify the surveillance center. Pick the events this switch controls (preselected: the ones armed right now).",
+        "data": { "triggers": "Events" }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to the NVR",
+      "invalid_auth": "Invalid username or password (the username is case-sensitive)",
+      "no_permission": "The NVR user lacks permissions",
+      "unknown": "Unexpected error"
+    },
+    "abort": { "already_configured": "This NVR is already configured" }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Events to arm/disarm",
+        "data": { "triggers": "Events" }
+      }
+    },
+    "abort": { "cannot_connect": "Cannot connect to the NVR" }
+  },
+  "entity": {
+    "switch": {
+      "notifications": { "name": "Hik-Connect notifications" }
+    }
+  }
+}
