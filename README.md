@@ -16,6 +16,14 @@ Hik-Connect sends push notifications only for events whose linkage has **Notify 
 
 Verified on a DS-7608NI-M2/8P (firmware V5.04.087) with DS-2CD2347G2H-LISU/SL cameras.
 
+### What it changes (and what it does not)
+
+- The setup lists **every per-channel event the NVR has** (motion, intrusion, line crossing, tamper, video loss, ...), whether or not that detection is
+  actually enabled on the camera. Events that currently notify the surveillance center are preselected; pick only the ones you use.
+- Arm/disarm changes **only** the *Notify Surveillance Center* linkage of the selected events. It does **not** enable or disable detection, and it does
+  not touch recording, alarm output/siren, buzzer or any other linkage action. Those keep working while disarmed.
+- If you select an event whose detection is turned off on the camera, arming adds the linkage but no notifications will come, because the event never fires.
+
 ### Good to know
 
 - **Motion events reach Home Assistant only while armed.** The NVR's event stream (`alertStream`, used by e.g. `hikvision_next`) is fed by the same
